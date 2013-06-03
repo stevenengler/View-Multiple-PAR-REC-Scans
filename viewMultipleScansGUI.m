@@ -1,57 +1,90 @@
-function viewMultipleScansGUI()
-	fileConstiningPath = 'initialFolder.txt';
-	% this file contains the path to the default folder containing the PAR/REC files
-	% if the file does not exist, there will be no default path
-	% initialFolder.txt should be included in the gitignore file
+function viewMultipleScansGUI(pathOrFiles)
+	% the function can be called with:
+	%	0 parameters:
+	%		The function will ask the user to select files starting in the
+	%		current MATLAB directory
+	%	1 parameter:
+	%		STRING:
+	%			The function will ask the user to select files starting in the
+	%			directory specified by the string
+	%		CELL ARRAY:
+	%			The function will display the image data in the array
 	%
-	pathPAR = '';
-	% pathPAR = directory containing the PAR/REC files
-	if exist(fileConstiningPath) == 2
-		pathPAR = fileread(fileConstiningPath);
-		% set the default PAR/REC directory contents of the file
+	% isPath == 1 if the argument "pathOrFiles" is a path
+	% isPath == 0 if the argument "pathOrFiles" is a cell array of scans
+	%
+	if nargin < 1
+		% no parameters
+		isPath = 1;
+		pathOrFiles = '~';
+	else
+		% one or more parameters
+		if strcmp(class(pathOrFiles),'char')
+			% pathOrFiles is a string
+			isPath = 1;
+		elseif strcmp(class(pathOrFiles),'cell')
+			% pathOrFiles is a cell array
+			isPath = 0;
+		end
 	end
-	pathPAR = [pathPAR,'/'];
-	% append a forward slash
-	%
-	[filenamesUnformatted,pathname] = uigetfile([pathPAR,'*.PAR'],'Select *.PAR files','MultiSelect','on');
-	% filenames are unformatted because they may be cell arrays or regular arrays
-	%
-	if iscell(filenamesUnformatted)
-		if size(filenamesUnformatted,1) == 0
-			% no files selected
-			return;
+	
+	if exist('isPath','var')==0
+		% if "isPath" was not defined, the supplied argument was neither a string or cell array
+		error('Must pass either a string path or a cell array of images scans!');
+	end
+	
+	if isPath==1
+		% pathOrFiles is a string (path)
+		pathOrFiles = [pathOrFiles,'/'];
+		% append a forward slash
+		[filenamesUnformatted,pathname] = uigetfile([pathOrFiles,'*.PAR'],'Select *.PAR files','MultiSelect','on');
+		% filenames are unformatted because they may be cell arrays or regular arrays
+		%
+		if iscell(filenamesUnformatted)
+			if size(filenamesUnformatted,1) == 0
+				% no files selected
+				return;
+			end
+		else
+			if filenamesUnformatted == 0
+				% no files selected
+				return;
+			end
+		end
+		%
+		numFiles = size(filenamesUnformatted,iscell(filenamesUnformatted)+1);
+		% this works because MATLAB is stupid
+		% numFiles = the number of files selected
+		%
+		images = cell(numFiles,1);
+		parms = cell(numFiles,1);
+		dims = cell(numFiles,1);
+		% cell arrays to hold the images, scan parameters, etc
+		%
+		filenames = cell(numFiles,1);
+		% cell array to hold the filenames
+		%
+		for i=1:numFiles
+			if iscell(filenamesUnformatted)
+				% multiple files were selected
+				filenames{i} = filenamesUnformatted{i};
+			else
+				% only one file was selected
+				filenames{i} = filenamesUnformatted;
+			end
+			parfile = [pathname, filenames{i}];
+			% the complete file path
+			[images{i},parms{i},dims{i}] = GetData_parrec(parfile,'FP');
+			% load the scan data in
 		end
 	else
-		if filenamesUnformatted == 0
-			% no files selected
-			return;
+		% pathOrFiles is a cell array of scan data
+		numFiles = size(pathOrFiles,2);
+		images = cell(numFiles,1);
+		filenames = cell(numFiles,1);
+		for i=1:numFiles
+			images{i} = pathOrFiles{i};
 		end
-	end
-	%
-	numFiles = size(filenamesUnformatted,iscell(filenamesUnformatted)+1);
-	% this works because MATLAB is stupid
-	% numFiles = the number of files selected
-	%
-	images = cell(numFiles,1);
-	parms = cell(numFiles,1);
-	dims = cell(numFiles,1);
-	% cell arrays to hold the images, scan parameters, etc
-	%
-	filenames = cell(numFiles,1);
-	% cell array to hold the filenames
-	%
-	for i=1:numFiles
-		if iscell(filenamesUnformatted)
-			% multiple files were selected
-			filenames{i} = filenamesUnformatted{i};
-		else
-			% only one file was selected
-			filenames{i} = filenamesUnformatted;
-		end
-		parfile = [pathname, filenames{i}];
-		% the complete file path
-		[images{i},parms{i},dims{i}] = GetData_parrec(parfile,'FP');
-		% load the scan data in
 	end
 	%
 	mainWindow = figure;
@@ -109,8 +142,10 @@ function resizeWindow(hObject, ~, numFiles)
 		x = imageSize*mod(i-1,floor(windowPosition(3)/imageSize))+(windowPosition(3)-imageSize*floor(windowPosition(3)/imageSize))/2;
 		y = imageSize*floor((i-1)/floor(windowPosition(3)/imageSize))+20;
 		% the x and y positions of the current image in the window
-		set(findobj(handles,'Tag',['ui_imageAxes',num2str(i)]),'position',[x y imageSize imageSize]);
-		% update the position and size of the image
+		if (isnan(y)~=1)&&(isinf(y)~=1)
+			set(findobj(handles,'Tag',['ui_imageAxes',num2str(i)]),'position',[x y imageSize imageSize]);
+			% update the position and size of the image
+		end
 	end
 end
 
